@@ -1,85 +1,86 @@
 package routes
 
 import (
-	"project_uas/database"
-	"project_uas/app/repository"
 	"project_uas/app/service"
+	"project_uas/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(router *gin.Engine) {
+func RegisterRoutes(router *gin.Engine, authService *service.AuthService) {
 
 	api := router.Group("/api/v1")
 
-	
-	// AUTHENTICATION
-	
+	// =====================
+	// AUTH
+	// =====================
 	auth := api.Group("/auth")
 	{
-		auth.POST("/login", controller.Login)
-		auth.POST("/refresh", controller.RefreshToken)
-		auth.POST("/logout", middleware.AuthMiddleware(), controller.Logout)
-		auth.GET("/profile", middleware.AuthMiddleware(), controller.GetProfile)
+		auth.POST("/login", authService.Login)
+		auth.POST("/refresh", nil)
+		auth.POST("/logout", middleware.AuthMiddleware(), nil)
+		auth.GET("/profile", middleware.AuthMiddleware(), nil)
 	}
 
-	// USERS (Admin Only)
+	// =====================
+	// USERS
+	// =====================
 	users := api.Group("/users", middleware.AuthMiddleware(), middleware.OnlyAdmin())
 	{
-		users.GET("/", controller.GetAllUsers)
-		users.GET("/:id", controller.GetUserByID)
-		users.POST("/", controller.CreateUser)
-		users.PUT("/:id", controller.UpdateUser)
-		users.DELETE("/:id", controller.DeleteUser)
-
-		// Update Role User
-		users.PUT("/:id/role", controller.UpdateUserRole)
+		users.GET("/", nil)
+		users.GET("/:id", nil)
+		users.POST("/", nil)
+		users.PUT("/:id", nil)
+		users.DELETE("/:id", nil)
+		users.PUT("/:id/role", nil)
 	}
 
-	//  ACHIEVEMENTS
+	// =====================
+	// ACHIEVEMENTS
+	// =====================
 	ach := api.Group("/achievements", middleware.AuthMiddleware())
 	{
-		ach.GET("/", controller.GetAchievements)             // list
-		ach.GET("/:id", controller.GetAchievementDetail)     // detail
+		ach.GET("/", nil)
+		ach.GET("/:id", nil)
 
-		// mahasiswa
-		ach.POST("/", middleware.OnlyStudent(), controller.CreateAchievement)
-		ach.PUT("/:id", middleware.OnlyStudent(), controller.UpdateAchievement)
-		ach.DELETE("/:id", middleware.OnlyStudent(), controller.DeleteAchievement)
+		ach.POST("/", middleware.OnlyStudent(), nil)
+		ach.PUT("/:id", middleware.OnlyStudent(), nil)
+		ach.DELETE("/:id", middleware.OnlyStudent(), nil)
 
-		// workflow: submit, verify, reject
-		ach.POST("/:id/submit", middleware.OnlyStudent(), controller.SubmitAchievement)
-		ach.POST("/:id/verify", middleware.OnlyLecturer(), controller.VerifyAchievement)
-		ach.POST("/:id/reject", middleware.OnlyLecturer(), controller.RejectAchievement)
+		ach.POST("/:id/submit", middleware.OnlyStudent(), nil)
+		ach.POST("/:id/verify", middleware.OnlyLecturer(), nil)
+		ach.POST("/:id/reject", middleware.OnlyLecturer(), nil)
 
-		// history
-		ach.GET("/:id/history", controller.GetAchievementHistory)
-
-		// file upload
-		ach.POST("/:id/attachments", controller.UploadAttachment)
+		ach.GET("/:id/history", nil)
+		ach.POST("/:id/attachments", nil)
 	}
 
-	
-	//  STUDENTS & LECTURERS
-
+	// =====================
+	// STUDENTS
+	// =====================
 	students := api.Group("/students", middleware.AuthMiddleware())
 	{
-		students.GET("/", controller.GetAllStudents)
-		students.GET("/:id", controller.GetStudentByID)
-		students.GET("/:id/achievements", controller.GetStudentAchievements)
-		students.PUT("/:id/advisor", middleware.OnlyAdmin(), controller.UpdateStudentAdvisor)
+		students.GET("/", nil)
+		students.GET("/:id", nil)
+		students.GET("/:id/achievements", nil)
+		students.PUT("/:id/advisor", middleware.OnlyAdmin(), nil)
 	}
 
+	// =====================
+	// LECTURERS
+	// =====================
 	lecturers := api.Group("/lecturers", middleware.AuthMiddleware())
 	{
-		lecturers.GET("/", controller.GetAllLecturers)
-		lecturers.GET("/:id/advisees", controller.GetLecturerAdvisees)
+		lecturers.GET("/", nil)
+		lecturers.GET("/:id/advisees", nil)
 	}
 
-	//  REPORTS & ANALYTICS
+	// =====================
+	// REPORTS
+	// =====================
 	reports := api.Group("/reports", middleware.AuthMiddleware())
 	{
-		reports.GET("/statistics", middleware.OnlyAdmin(), controller.GetStatisticsReport)
-		reports.GET("/student/:id", controller.GetStudentReport)
+		reports.GET("/statistics", middleware.OnlyAdmin(), nil)
+		reports.GET("/student/:id", nil)
 	}
 }

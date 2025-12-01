@@ -8,24 +8,56 @@ import (
 
 func OnlyAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		role := c.GetString("role")
-
-		if role != "Admin" {
+		if c.GetString("role") != "admin" {
 			c.JSON(http.StatusForbidden, gin.H{"error": "admin only"})
 			c.Abort()
 			return
 		}
-
 		c.Next()
 	}
 }
 
 func OnlyStudent() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		role := c.GetString("role")
+		if c.GetString("role") != "student" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "students only"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
 
-		if role != "Mahasiswa" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "student only"})
+func OnlyLecturer() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.GetString("role") != "lecturer" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "lecturers only"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// ================================
+//   SELF ACCESS VALIDATION
+// ================================
+func OnlySelf() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		role := c.GetString("role")
+		userID := c.GetString("user_id")
+		paramID := c.Param("id")
+
+		if role == "admin" {
+			c.Next()
+			return
+		}
+
+		if userID != paramID {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "you can only access your own account",
+			})
 			c.Abort()
 			return
 		}
@@ -34,12 +66,36 @@ func OnlyStudent() gin.HandlerFunc {
 	}
 }
 
-func OnlyLecturer() gin.HandlerFunc {
+func OnlyStudentSelf() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		role := c.GetString("role")
 
-		if role != "Dosen Wali" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "lecturer only"})
+		if c.GetString("role") != "student" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "students only"})
+			c.Abort()
+			return
+		}
+
+		if c.GetString("user_id") != c.Param("id") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "you can only access your own account"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func OnlyLecturerSelf() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		if c.GetString("role") != "lecturer" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "lecturers only"})
+			c.Abort()
+			return
+		}
+
+		if c.GetString("user_id") != c.Param("id") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "you can only access your own account"})
 			c.Abort()
 			return
 		}

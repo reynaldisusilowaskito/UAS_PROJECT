@@ -2,52 +2,44 @@ package middleware
 
 import (
 	"net/http"
-	"os"
 	"strings"
 
+	"project_uas/helper"
+
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
-		// Ambil header Authorization: Bearer xxx
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing Authorization header"})
 			c.Abort()
 			return
 		}
 
-		// Ambil token setelah "Bearer "
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization format"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid Authorization header"})
 			c.Abort()
 			return
 		}
 
-		tokenString := parts[1]
+		accessToken := parts[1]
 
-		// Parse JWT
-		token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
-			return []byte(os.Getenv("JWT_SECRET")), nil
-		})
-
-		if err != nil || !token.Valid {
+		claims, err := helper.VerifyAccessToken(accessToken)
+		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			c.Abort()
 			return
 		}
 
-		claims := token.Claims.(jwt.MapClaims)
-
-		// Masukkan data JWT ke context
-		c.Set("user_id", claims["user_id"])
-		c.Set("username", claims["username"])
-		c.Set("role", claims["role"])
-		c.Set("permissions", claims["permissions"])
+		// Set ke context
+		c.Set("user_id", claims.UserID)
+		c.Set("username", claims.Username)
+		c.Set("role", claims.Role)
+		c.Set("permissions", claims.Permissions)
 
 		c.Next()
 	}

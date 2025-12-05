@@ -21,7 +21,7 @@ func main() {
 	database.Connect()
 
 	// Run migration
-	database.Migrate(database.PostgresDB)
+	// database.Migrate(database.PostgresDB)
 
 	// Init Repository
 	authRepo := repository.NewAuthRepo(database.PostgresDB)

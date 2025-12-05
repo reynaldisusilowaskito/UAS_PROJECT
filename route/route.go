@@ -25,16 +25,17 @@ func RegisterRoutes(router *gin.Engine, authService *service.AuthService) {
 	// =====================
 	// USERS
 	// =====================
-	users := api.Group("/users", middleware.AuthMiddleware(), middleware.OnlyAdmin())
+	users := api.Group("/users", middleware.AuthMiddleware())
 	{
-		users.GET("/", nil)
-		users.GET("/:id", nil)
-		users.POST("/", nil)
-		users.PUT("/:id", nil)
-		users.DELETE("/:id", nil)
-		users.PUT("/:id/role", nil)
-	}
+		users.GET("/", middleware.RequirePermission("users:read"), nil)
+		users.GET("/:id", middleware.RequirePermission("users:read"), nil)
+		
+		users.POST("/", middleware.RequirePermission("users:create"), nil)
+		users.PUT("/:id", middleware.RequirePermission("users:update"), nil)
+		users.DELETE("/:id", middleware.RequirePermission("users:delete"), nil)
 
+		users.PUT("/:id/role", middleware.RequirePermission("users:update-role"), nil)
+	}
 	// =====================
 	// ACHIEVEMENTS
 	// =====================

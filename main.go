@@ -6,6 +6,7 @@ import (
 	"project_uas/config"
 	"project_uas/database"
 	"project_uas/route"
+
 	"project_uas/app/repository"
 	"project_uas/app/service"
 
@@ -20,20 +21,21 @@ func main() {
 	// Connect to PostgreSQL & MongoDB
 	database.Connect()
 
-	// Run migration
-	// database.Migrate(database.PostgresDB)
-
 	// Init Repository
 	authRepo := repository.NewAuthRepo(database.PostgresDB)
+	achievementRepo := repository.NewAchievementRepo(database.PostgresDB, database.MongoDB)
+	studentRepo := repository.NewStudentRepo(database.PostgresDB)
 
-	// Init Service
+	// Init Services
 	authService := service.NewAuthService(authRepo)
+	achievementService := service.NewAchievementService(achievementRepo, studentRepo)
+	studentService := service.NewStudentService(studentRepo)
 
 	// Init Router
 	r := gin.Default()
 
-	// Register Routes (inject service)
-	routes.RegisterRoutes(r, authService)
+	// Register Routes
+	route.RegisterRoutes(r, authService, achievementService, studentService)
 
 	log.Println("Server running at :8080")
 	r.Run(":8080")

@@ -33,7 +33,7 @@ func (s *AuthService) Login(c *gin.Context) {
 		return
 	}
 
-	// (2) Ambil user berdasarkan username/email
+	// (2) Ambil user berdasarkan username
 	user, err := s.AuthRepo.FindByUsername(req.Username)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid username or password"})
@@ -46,27 +46,27 @@ func (s *AuthService) Login(c *gin.Context) {
 		return
 	}
 
-	// Cek status user
+	// (4) Cek status aktif
 	if !user.IsActive {
 		c.JSON(http.StatusForbidden, gin.H{"error": "account disabled"})
 		return
 	}
 
-	// (4) Ambil role user
+	// (5) Ambil role
 	roleName, err := s.AuthRepo.GetRoleNameByID(user.RoleID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot get user role"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot load role"})
 		return
 	}
 
 	// Ambil permissions user
 	perms, err := s.AuthRepo.GetPermissionsByRole(user.RoleID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot get permissions"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot load permissions"})
 		return
 	}
 
-	// (5) Generate Access Token
+	// (6) Generate Access Token
 	accessToken, err := helper.GenerateAccessToken(
 		user.ID,
 		user.Username,
@@ -85,7 +85,7 @@ func (s *AuthService) Login(c *gin.Context) {
 		return
 	}
 
-	// (6) Return response sesuai SRS
+	// (7) Return response sesuai SRS
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data": gin.H{
@@ -102,3 +102,31 @@ func (s *AuthService) Login(c *gin.Context) {
 		},
 	})
 }
+
+// =====================
+//     GET PROFILE
+// =====================
+func (s *AuthService) GetProfile(c *gin.Context) {
+
+	userID := c.GetString("user_id")
+	username := c.GetString("username")
+	role := c.GetString("role")
+
+	permissions, _ := c.Get("permissions") // c.Get mengembalikan (value, exists)
+
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"data": gin.H{
+			"user_id":     userID,
+			"username":    username,
+			"role":        role,
+			"permissions": permissions,
+		},
+	})
+}
+

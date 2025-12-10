@@ -365,3 +365,69 @@ func (s *AchievementService) UploadAttachment(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "attachment uploaded"})
 }
+
+
+func (s *AchievementService) DeleteAchievement(c *gin.Context) {
+    refID := c.Param("id")
+    if refID == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "missing id"})
+        return
+    }
+
+    userID := c.GetString("user_id")
+    if userID == "" {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user in token"})
+        return
+    }
+
+    s.Repo.EnsureDBs()
+
+    // --- Ambil student ---
+    student, err := s.StudentRepo.FindByUserID(userID)
+    if err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "student profile not found"})
+        return
+    }
+
+    // --- Ambil reference ---
+    ref, err := s.Repo.GetReferenceByID(refID)
+    if err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "achievement not found"})
+        return
+    }
+
+    // --- Validasi kepemilikan ---
+    if ref.StudentID != student.ID {
+        c.JSON(http.StatusForbidden, gin.H{"error": "not allowed"})
+        return
+    }
+
+    // --- Precondition: hanya draft yang boleh dihapus ---
+    if ref.Status != "draft" {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "only draft achievements can be deleted"})
+        return
+    }
+
+    // --- Soft delete Mongo ---
+    if err := s.Repo.SoftDeleteMongo(ref.MongoAchievementID); err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "error": "failed to soft delete mongo",
+            "detail": err.Error(),
+        })
+        return
+    }
+
+    // --- Update reference PostgreSQL ---
+    if err := s.Repo.SoftDeleteReference(refID); err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "error": "failed to update reference",
+            "detail": err.Error(),
+        })
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "message": "achievement deleted successfully",
+        "id":      refID,
+    })
+}

@@ -47,6 +47,8 @@ func RegisterRoutes(router *gin.Engine, authService *service.AuthService, achiev
 		ach.GET("/:id/history", achievementService.GetAchievementHistory)
 		ach.POST("/:id/attachments", achievementService.UploadAttachment)
 		ach.GET("/:id", achievementService.GetAchievementDetail)
+		ach.DELETE("/:id", middleware.OnlyStudent(), achievementService.DeleteAchievement)
+
 	}
 
 	// =====================

@@ -326,3 +326,39 @@ func (r *AchievementRepo) CreateNotification(userID, title, message string) erro
 
 	return err
 }
+
+
+func (r *AchievementRepo) SoftDeleteMongo(hexID string) error {
+    r.EnsureDBs()
+
+    collection := r.Mongo.Collection("achievements")
+    oid, err := primitive.ObjectIDFromHex(hexID)
+    if err != nil {
+        return err
+    }
+
+    _, err = collection.UpdateOne(
+        context.Background(),
+        bson.M{"_id": oid},
+        bson.M{
+            "$set": bson.M{
+                "deleted_at": time.Now(),
+                "updated_at": time.Now(),
+            },
+        },
+    )
+    return err
+}
+
+func (r *AchievementRepo) SoftDeleteReference(refID string) error {
+    r.EnsureDBs()
+
+    _, err := r.Psql.Exec(`
+        UPDATE achievement_references
+        SET status = 'deleted', updated_at = NOW()
+        WHERE id = $1
+    `, refID)
+
+    return err
+}
+

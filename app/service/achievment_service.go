@@ -153,34 +153,62 @@ func (s *AchievementService) SubmitAchievement(c *gin.Context) {
 
 	s.Repo.EnsureDBs()
 
+	// ---- Ambil student berdasarkan user_id ----
+	student, err := s.StudentRepo.FindByUserID(userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "student profile not found"})
+		return
+	}
+
+	// ---- Ambil achievement reference ----
 	ref, err := s.Repo.GetReferenceByID(refID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "reference not found"})
 		return
 	}
 
-	// hanya owner (student) atau admin boleh submit
-	role := c.GetString("role")
-	if role != "admin" && ref.StudentID != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "not allowed to submit this achievement"})
+	// ---- Validasi kepemilikan ----
+	if ref.StudentID != student.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "not allowed"})
 		return
 	}
 
-	// cek status saat ini
-	if ref.Status == "submitted" || ref.Status == "verified" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "already submitted or processed"})
+	// ---- Precondition FR-004: harus draft ----
+	if ref.Status != "draft" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only draft can be submitted"})
 		return
 	}
 
-	if err := s.Repo.UpdateReferenceStatus(refID, "submitted", nil); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed update", "detail": err.Error()})
+	// ---- Update status -> submitted ----
+	if err := s.Repo.Submit(refID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":  "failed to submit",
+			"detail": err.Error(),
+		})
 		return
 	}
 
-	_ = s.Repo.AddHistory(refID, ref.Status, "submitted", userID, "")
+	// ---- History ----
+	_ = s.Repo.AddHistory(refID, "draft", "submitted", userID, "")
 
-	c.JSON(http.StatusOK, gin.H{"message": "submitted"})
+	// ---- Kirim notifikasi ke advisor ----
+	if student.AdvisorID != nil { // advisor_id tidak null
+		advisorID := *student.AdvisorID
+
+		_ = s.Repo.CreateNotification(
+			advisorID,
+			"Pengajuan Prestasi Baru",
+			"Mahasiswa mengirim pengajuan prestasi untuk diverifikasi.",
+		)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "submitted",
+		"status":  "submitted",
+	})
 }
+
+
 
 // ------------------------- VERIFY ----------------------------
 func (s *AchievementService) VerifyAchievement(c *gin.Context) {

@@ -39,32 +39,27 @@ func RegisterRoutes(router *gin.Engine, authService *service.AuthService, achiev
 	// ACHIEVEMENTS
 	// =====================
 	ach := api.Group("/achievements", middleware.AuthMiddleware())
-{
-    ach.POST("/", middleware.OnlyStudent(), achievementService.CreateAchievement)
-    ach.POST("/:id/submit", middleware.OnlyStudent(), achievementService.SubmitAchievement)
-    ach.POST("/:id/verify", middleware.OnlyLecturer(), achievementService.VerifyAchievement)
-    ach.POST("/:id/reject", middleware.OnlyLecturer(), achievementService.RejectAchievement)
-    ach.GET("/:id/history", achievementService.GetAchievementHistory)
-    ach.POST("/:id/attachments", achievementService.UploadAttachment)
-    ach.GET("/:id", achievementService.GetAchievementDetail)
-}
-
-
+	{
+		ach.POST("/", middleware.OnlyStudent(), achievementService.CreateAchievement)
+		ach.POST("/:id/submit", middleware.OnlyStudent(), achievementService.SubmitAchievement)
+		ach.POST("/:id/verify", middleware.OnlyLecturer(), achievementService.VerifyAchievement)
+		ach.POST("/:id/reject", middleware.OnlyLecturer(), achievementService.RejectAchievement)
+		ach.GET("/:id/history", achievementService.GetAchievementHistory)
+		ach.POST("/:id/attachments", achievementService.UploadAttachment)
+		ach.GET("/:id", achievementService.GetAchievementDetail)
+	}
 
 	// =====================
 	// STUDENTS
 	// =====================
 	students := api.Group("/students", middleware.AuthMiddleware())
-{
-    students.GET("/", nil)
-    students.GET("/:id", nil)
-    students.GET("/:id/achievements", nil)
-    students.PUT("/:id/advisor", middleware.OnlyAdmin(), nil)
-
-    // Tambahan penting
-    students.GET("/profile", studentService.GetProfile)
-}
-
+	{
+		students.GET("/", nil)
+		students.GET("/:id", nil)
+		students.GET("/:id/achievements", nil)
+		students.PUT("/:id/advisor", middleware.OnlyAdmin(), nil)
+		students.GET("/profile", studentService.GetProfile)
+	}
 
 	// =====================
 	// LECTURERS

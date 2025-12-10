@@ -37,6 +37,12 @@ func main() {
 	// Register Routes
 	route.RegisterRoutes(r, authService, achievementService, studentService)
 
+	
+	for _, ri := range r.Routes() {
+    log.Println(ri.Method, ri.Path)
+}
+
+
 	log.Println("Server running at :8080")
 	r.Run(":8080")
 }

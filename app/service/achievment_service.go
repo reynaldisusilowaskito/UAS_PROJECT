@@ -285,13 +285,8 @@ func (s *AchievementService) RejectAchievement(c *gin.Context) {
 	}
 
 	userID := c.GetString("user_id")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user in token"})
-		return
-	}
-
-	// only lecturer or admin can reject
 	role := c.GetString("role")
+
 	if role != "lecturer" && role != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "only lecturer or admin can reject"})
 		return
@@ -300,10 +295,12 @@ func (s *AchievementService) RejectAchievement(c *gin.Context) {
 	var body struct {
 		Note string `json:"note"`
 	}
-	_ = c.ShouldBindJSON(&body)
+	if err := c.ShouldBindJSON(&body); err != nil || body.Note == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "rejection note required"})
+		return
+	}
 
-	s.Repo.EnsureDBs()
-
+	// 1. Ambil reference
 	ref, err := s.Repo.GetReferenceByID(refID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "reference not found"})
@@ -315,15 +312,49 @@ func (s *AchievementService) RejectAchievement(c *gin.Context) {
 		return
 	}
 
-	if err := s.Repo.UpdateReferenceStatus(refID, "rejected", &userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed update status", "detail": err.Error()})
+	// 2. Ambil student
+	student, err := s.StudentRepo.GetByID(ref.StudentID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
 		return
 	}
 
+	// 3. Validasi dosen wali
+	if role == "lecturer" {
+		lecturerID, err := s.StudentRepo.GetLecturerIDByUserID(userID)
+		if err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "lecturer profile not found"})
+			return
+		}
+
+		if student.AdvisorID == nil || *student.AdvisorID != lecturerID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "not your advisee"})
+			return
+		}
+	}
+
+	// 4. Reject
+	if err := s.Repo.RejectReference(refID, userID, body.Note); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed reject achievement"})
+		return
+	}
+
+	// 5. History
 	_ = s.Repo.AddHistory(refID, "submitted", "rejected", userID, body.Note)
 
-	c.JSON(http.StatusOK, gin.H{"message": "rejected"})
+	// 6. Notification ke mahasiswa
+	_ = s.Repo.CreateNotification(
+		ref.StudentID,
+		"Prestasi Ditolak",
+		"Prestasi Anda ditolak dengan catatan: "+body.Note,
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "achievement rejected",
+		"status":  "rejected",
+	})
 }
+
 
 // ------------------------- HISTORY ----------------------------
 func (s *AchievementService) GetAchievementHistory(c *gin.Context) {
@@ -510,3 +541,5 @@ func (s *AchievementService) GetAdviseeAchievements(c *gin.Context) {
 		"limit": limit,
 	})
 }
+
+

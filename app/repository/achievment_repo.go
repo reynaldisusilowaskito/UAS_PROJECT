@@ -422,3 +422,25 @@ func (r *AchievementRepo) VerifyReference(
 
 	return err
 }
+
+
+func (r *AchievementRepo) RejectReference(
+	refID string,
+	rejectedBy string,
+	note string,
+) error {
+
+	r.EnsureDBs()
+
+	_, err := r.Psql.Exec(`
+		UPDATE achievement_references
+		SET status = 'rejected',
+		    rejection_note = $1,
+		    verified_by = $2,
+		    verified_at = NOW(),
+		    updated_at = NOW()
+		WHERE id = $3
+	`, note, rejectedBy, refID)
+
+	return err
+}

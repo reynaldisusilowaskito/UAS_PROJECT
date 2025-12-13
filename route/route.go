@@ -49,7 +49,9 @@ func RegisterRoutes(router *gin.Engine, authService *service.AuthService, achiev
 		ach.GET("/:id", achievementService.GetAchievementDetail)
 		ach.DELETE("/:id", middleware.OnlyStudent(), achievementService.DeleteAchievement)
 
+		
 	}
+
 
 	// =====================
 	// STUDENTS
@@ -69,7 +71,7 @@ func RegisterRoutes(router *gin.Engine, authService *service.AuthService, achiev
 	lecturers := api.Group("/lecturers", middleware.AuthMiddleware())
 	{
 		lecturers.GET("/", nil)
-		lecturers.GET("/:id/advisees", nil)
+		 lecturers.GET("/:id/advisees",middleware.OnlyLecturer(), achievementService.GetAdviseeAchievements,)
 	}
 
 	// =====================

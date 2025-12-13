@@ -3,7 +3,9 @@ package service
 import (
 	"net/http"
 	"log"
-	"time"
+	"time"	
+	"strconv"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -430,4 +432,61 @@ func (s *AchievementService) DeleteAchievement(c *gin.Context) {
         "message": "achievement deleted successfully",
         "id":      refID,
     })
+}
+
+
+func (s *AchievementService) GetAdviseeAchievements(c *gin.Context) {
+
+	lecturerID := c.Param("id")
+
+	// pagination
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	// 1. ambil mahasiswa bimbingan
+	studentIDs, err := s.StudentRepo.GetStudentIDsByAdvisor(lecturerID)
+	if err != nil || len(studentIDs) == 0 {
+		c.JSON(200, gin.H{
+			"data":  []any{},
+			"page":  page,
+			"limit": limit,
+		})
+		return
+	}
+
+	// 2. ambil reference prestasi (submitted saja)
+	refs, err := s.Repo.GetReferencesByStudentIDs(studentIDs, limit, offset)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 3. ambil detail mongo
+	results := []any{}
+	for _, ref := range refs {
+
+		detail, err := s.Repo.GetAchievementMongoDetail(ref.MongoAchievementID)
+		if err != nil {
+			fmt.Println("Mongo miss:", ref.MongoAchievementID)
+			continue
+		}
+
+		results = append(results, gin.H{
+			"reference": ref,
+			"detail":    detail,
+		})
+	}
+
+	c.JSON(200, gin.H{
+		"data":  results,
+		"page":  page,
+		"limit": limit,
+	})
 }

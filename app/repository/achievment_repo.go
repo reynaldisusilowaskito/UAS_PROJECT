@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	 "github.com/lib/pq"
 )
 
 /* ============================================================
@@ -362,3 +363,39 @@ func (r *AchievementRepo) SoftDeleteReference(refID string) error {
     return err
 }
 
+// Get references by student IDs (pagination)
+func (r *AchievementRepo) GetReferencesByStudentIDs(
+	studentIDs []string,
+	limit int,
+	offset int,
+) ([]model.AchievementReference, error) {
+
+	var refs []model.AchievementReference
+
+	query := `
+		SELECT id, student_id, mongo_achievement_id, status,
+		       created_at, updated_at
+		FROM achievement_references
+		WHERE student_id = ANY($1)
+		  AND status = 'submitted'
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+	`
+
+	err := r.Psql.Select(&refs, query, pq.Array(studentIDs), limit, offset)
+	return refs, err
+}
+
+func (r *AchievementRepo) GetAchievementMongoDetail(id string) (bson.M, error) {
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+
+	var result bson.M
+	err = r.Mongo.Collection("achievements").
+		FindOne(context.Background(), bson.M{"_id": objID}).
+		Decode(&result)
+
+	return result, err
+}

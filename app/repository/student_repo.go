@@ -11,6 +11,7 @@ type StudentRepo struct {
 
 func NewStudentRepo(db *sqlx.DB) *StudentRepo {
     return &StudentRepo{DB: db}
+    
 }
 
 func (r *StudentRepo) FindByUserID(userID string) (*model.Student, error) {
@@ -75,4 +76,19 @@ func (r *StudentRepo) GetAll() ([]model.Student, error) {
     `)
 
     return data, err
+}
+
+// GetStudentIDsByAdvisor
+func (r *StudentRepo) GetStudentIDsByAdvisor(advisorID string) ([]string, error) {
+
+	var ids []string
+
+	query := `
+		SELECT id
+		FROM students
+		WHERE advisor_id = $1
+	`
+
+	err := r.DB.Select(&ids, query, advisorID)
+	return ids, err
 }

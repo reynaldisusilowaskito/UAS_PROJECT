@@ -221,20 +221,14 @@ func (s *AchievementService) VerifyAchievement(c *gin.Context) {
 	}
 
 	userID := c.GetString("user_id")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user in token"})
-		return
-	}
-
-	// only lecturer or admin can verify
 	role := c.GetString("role")
+
 	if role != "lecturer" && role != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "only lecturer or admin can verify"})
 		return
 	}
 
-	s.Repo.EnsureDBs()
-
+	// 1. Ambil reference
 	ref, err := s.Repo.GetReferenceByID(refID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "reference not found"})
@@ -246,15 +240,41 @@ func (s *AchievementService) VerifyAchievement(c *gin.Context) {
 		return
 	}
 
+	// 2. Ambil student dari reference
+	student, err := s.StudentRepo.GetByID(ref.StudentID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		return
+	}
+
+	// 3. Validasi dosen wali
+	if role == "lecturer" {
+		lecturerID, err := s.StudentRepo.GetLecturerIDByUserID(userID)
+		if err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "lecturer profile not found"})
+			return
+		}
+
+		if student.AdvisorID == nil || *student.AdvisorID != lecturerID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "not your advisee"})
+			return
+		}
+	}
+
+	// 4. Update status
 	if err := s.Repo.UpdateReferenceStatus(refID, "verified", &userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed update status", "detail": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed update status"})
 		return
 	}
 
 	_ = s.Repo.AddHistory(refID, "submitted", "verified", userID, "")
 
-	c.JSON(http.StatusOK, gin.H{"message": "verified"})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "achievement verified",
+		"status":  "verified",
+	})
 }
+
 
 // ------------------------- REJECT ----------------------------
 func (s *AchievementService) RejectAchievement(c *gin.Context) {

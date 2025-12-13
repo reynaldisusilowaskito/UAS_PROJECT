@@ -92,3 +92,12 @@ func (r *StudentRepo) GetStudentIDsByAdvisor(advisorID string) ([]string, error)
 	err := r.DB.Select(&ids, query, advisorID)
 	return ids, err
 }
+
+func (r *StudentRepo) GetLecturerIDByUserID(userID string) (string, error) {
+	var lecturerID string
+	err := r.DB.Get(&lecturerID, `
+		SELECT id FROM lecturers WHERE user_id = $1
+	`, userID)
+	return lecturerID, err
+}
+

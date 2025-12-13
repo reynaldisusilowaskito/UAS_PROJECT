@@ -399,3 +399,26 @@ func (r *AchievementRepo) GetAchievementMongoDetail(id string) (bson.M, error) {
 
 	return result, err
 }
+
+
+func (r *AchievementRepo) VerifyReference(
+	refID string,
+	lecturerID string,
+) error {
+
+	r.EnsureDBs()
+
+	_, err := r.Psql.Exec(`
+		UPDATE achievement_references
+		SET
+			status = 'verified',
+			verified_by = $2,
+			verified_at = NOW(),
+			updated_at = NOW()
+		WHERE
+			id = $1
+			AND status = 'submitted'
+	`, refID, lecturerID)
+
+	return err
+}

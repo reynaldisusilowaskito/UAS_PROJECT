@@ -3,8 +3,9 @@ package service
 import (
 	"net/http"
 
+	"github.com/gofiber/fiber/v2"
+
 	"project_uas/app/repository"
-	"github.com/gin-gonic/gin"
 )
 
 type LecturerService struct {
@@ -15,14 +16,21 @@ func NewLecturerService(repo *repository.LecturerRepo) *LecturerService {
 	return &LecturerService{Repo: repo}
 }
 
-func (s *LecturerService) GetProfile(c *gin.Context) {
-	userID := c.GetString("user_id")
+func (s *LecturerService) GetProfile(c *fiber.Ctx) error {
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
+			"error": "invalid token",
+		})
+	}
+	userIDStr := userID.(string)
 
-	data, err := s.Repo.GetByUserID(userID)
+	data, err := s.Repo.GetByUserID(userIDStr)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "lecturer not found"})
-		return
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{
+			"error": "lecturer not found",
+		})
 	}
 
-	c.JSON(http.StatusOK, data)
+	return c.Status(http.StatusOK).JSON(data)
 }

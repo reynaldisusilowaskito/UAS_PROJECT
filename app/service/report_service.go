@@ -3,8 +3,9 @@ package service
 import (
 	"net/http"
 
+	"github.com/gofiber/fiber/v2"
+
 	"project_uas/app/repository"
-	"github.com/gin-gonic/gin"
 )
 
 type ReportService struct {
@@ -15,12 +16,13 @@ func NewReportService(repo *repository.ReportRepo) *ReportService {
 	return &ReportService{Repo: repo}
 }
 
-func (s *ReportService) GetAchievementStats(c *gin.Context) {
+func (s *ReportService) GetAchievementStats(c *fiber.Ctx) error {
 	data, err := s.Repo.CountAchievementsByStatus()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed report"})
-		return
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed report",
+		})
 	}
 
-	c.JSON(http.StatusOK, data)
+	return c.Status(http.StatusOK).JSON(data)
 }

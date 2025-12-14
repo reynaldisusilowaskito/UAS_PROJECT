@@ -3,103 +3,100 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 )
 
-func OnlyAdmin() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if c.GetString("role") != "admin" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "admin only"})
-			c.Abort()
-			return
+func OnlyAdmin() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if c.Locals("role") != "admin" {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"error": "admin only",
+			})
 		}
-		c.Next()
+		return c.Next()
 	}
 }
 
-func OnlyStudent() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if c.GetString("role") != "student" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "students only"})
-			c.Abort()
-			return
+func OnlyStudent() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if c.Locals("role") != "student" {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"error": "students only",
+			})
 		}
-		c.Next()
+		return c.Next()
 	}
 }
 
-func OnlyLecturer() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if c.GetString("role") != "lecturer" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "lecturers only"})
-			c.Abort()
-			return
+func OnlyLecturer() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if c.Locals("role") != "lecturer" {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"error": "lecturers only",
+			})
 		}
-		c.Next()
+		return c.Next()
 	}
 }
 
 // ================================
 //   SELF ACCESS VALIDATION
 // ================================
-func OnlySelf() gin.HandlerFunc {
-	return func(c *gin.Context) {
+func OnlySelf() fiber.Handler {
+	return func(c *fiber.Ctx) error {
 
-		role := c.GetString("role")
-		userID := c.GetString("user_id")
-		paramID := c.Param("id")
+		role := c.Locals("role")
+		userID := c.Locals("user_id")
+		paramID := c.Params("id")
 
 		if role == "admin" {
-			c.Next()
-			return
+			return c.Next()
 		}
 
 		if userID != paramID {
-			c.JSON(http.StatusForbidden, gin.H{
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
 				"error": "you can only access your own account",
 			})
-			c.Abort()
-			return
 		}
 
-		c.Next()
+		return c.Next()
 	}
 }
 
-func OnlyStudentSelf() gin.HandlerFunc {
-	return func(c *gin.Context) {
+func OnlyStudentSelf() fiber.Handler {
+	return func(c *fiber.Ctx) error {
 
-		if c.GetString("role") != "student" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "students only"})
-			c.Abort()
-			return
+		if c.Locals("role") != "student" {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"error": "students only",
+			})
 		}
 
-		if c.GetString("user_id") != c.Param("id") {
-			c.JSON(http.StatusForbidden, gin.H{"error": "you can only access your own account"})
-			c.Abort()
-			return
+		if c.Locals("user_id") != c.Params("id") {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"error": "you can only access your own account",
+			})
 		}
 
-		c.Next()
+		return c.Next()
 	}
 }
 
-func OnlyLecturerSelf() gin.HandlerFunc {
-	return func(c *gin.Context) {
+func OnlyLecturerSelf() fiber.Handler {
+	return func(c *fiber.Ctx) error {
 
-		if c.GetString("role") != "lecturer" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "lecturers only"})
-			c.Abort()
-			return
+		if c.Locals("role") != "lecturer" {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"error": "lecturers only",
+			})
 		}
 
-		if c.GetString("user_id") != c.Param("id") {
-			c.JSON(http.StatusForbidden, gin.H{"error": "you can only access your own account"})
-			c.Abort()
-			return
+		if c.Locals("user_id") != c.Params("id") {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"error": "you can only access your own account",
+			})
 		}
 
-		c.Next()
+		return c.Next()
 	}
 }

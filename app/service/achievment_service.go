@@ -3,11 +3,14 @@ package service
 import (
 	"net/http"
 	"log"
-	"time"	
+	"time"
 	"strconv"
 	"fmt"
+	"path/filepath"
+	"strings"
+	"os"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
 	"project_uas/app/model"
@@ -27,341 +30,275 @@ func NewAchievementService(repo *repository.AchievementRepo, studentRepo *reposi
 }
 
 // ------------------------- CREATE -------------------------
-func (s *AchievementService) CreateAchievement(c *gin.Context) {
-    var req model.Achievement
+func (s *AchievementService) CreateAchievement(c *fiber.Ctx) error {
+	var req model.Achievement
 
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
-        return
-    }
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid request body",
+		})
+	}
 
-    // ------------------------------
-    // Ambil user dari JWT
-    // ------------------------------
-    userID := c.GetString("user_id")
-    if userID == "" {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user in token"})
-        return
-    }
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
+			"error": "missing user in token",
+		})
+	}
+	userIDStr := userID.(string)
 
-    log.Println("DEBUG Token user_id =", userID)
+	log.Println("DEBUG Token user_id =", userIDStr)
 
-    // ------------------------------
-    // Ambil student profile berdasar user_id
-    // ------------------------------
-    student, err := s.StudentRepo.FindByUserID(userID)
-    if err != nil {
-        log.Println("DEBUG StudentRepo.FindByUserID error =", err)
-        c.JSON(http.StatusNotFound, gin.H{
-            "error":  "student profile not found",
-            "detail": err.Error(),
-        })
-        return
-    }
+	student, err := s.StudentRepo.FindByUserID(userIDStr)
+	if err != nil {
+		log.Println("DEBUG StudentRepo.FindByUserID error =", err)
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{
+			"error":  "student profile not found",
+			"detail": err.Error(),
+		})
+	}
 
-    log.Println("DEBUG FOUND STUDENT:", student.ID, student.UserID)
+	log.Println("DEBUG FOUND STUDENT:", student.ID, student.UserID)
 
-    // ------------------------------
-    // Siapkan data untuk Mongo
-    // ------------------------------
-    req.CreatedBy = userID
-    now := time.Now()
+	req.CreatedBy = userIDStr
+	now := time.Now()
+	req.CreatedAt = now
+	req.UpdatedAt = now
 
-    req.CreatedAt = now
-    req.UpdatedAt = now
+	s.Repo.EnsureDBs()
 
-    s.Repo.EnsureDBs()
+	mongoHex, err := s.Repo.CreateAchievementMongo(req)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error":  "failed insert achievement into mongo",
+			"detail": err.Error(),
+		})
+	}
 
-    // ------------------------------
-    // Insert MongoDB
-    // ------------------------------
-    mongoHex, err := s.Repo.CreateAchievementMongo(req)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{
-            "error":  "failed insert achievement into mongo",
-            "detail": err.Error(),
-        })
-        return
-    }
+	ref := model.AchievementReference{
+		ID:                 uuid.New().String(),
+		StudentID:          student.ID,
+		MongoAchievementID: mongoHex,
+		Status:             "draft",
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
 
-    // ------------------------------
-    // Insert reference ke PostgreSQL
-    // ------------------------------
-    ref := model.AchievementReference{
-        ID:                 uuid.New().String(),
-        StudentID:          student.ID,
-        MongoAchievementID: mongoHex,
-        Status:             "draft",
-        CreatedAt:          now,
-        UpdatedAt:          now,
-    }
+	if err := s.Repo.CreateReference(ref); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error":  "failed insert reference to postgres",
+			"detail": err.Error(),
+		})
+	}
 
-    if err := s.Repo.CreateReference(ref); err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{
-            "error":  "failed insert reference to postgres",
-            "detail": err.Error(),
-        })
-        return
-    }
-
-    // Success
-    c.JSON(http.StatusCreated, gin.H{
-        "message": "achievement created",
-        "data":    ref,
-    })
+	return c.Status(http.StatusCreated).JSON(fiber.Map{
+		"message": "achievement created",
+		"data":    ref,
+	})
 }
 
 // ------------------------- DETAIL ----------------------------
-func (s *AchievementService) GetAchievementDetail(c *gin.Context) {
-	refID := c.Param("id")
+func (s *AchievementService) GetAchievementDetail(c *fiber.Ctx) error {
+	refID := c.Params("id")
 	if refID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing id"})
-		return
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "missing id"})
 	}
 
 	s.Repo.EnsureDBs()
 
 	ref, err := s.Repo.GetReferenceByID(refID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "reference not found"})
-		return
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "reference not found"})
 	}
 
 	ach, err := s.Repo.GetAchievementMongo(ref.MongoAchievementID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed retrieve achievement", "detail": err.Error()})
-		return
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error":  "failed retrieve achievement",
+			"detail": err.Error(),
+		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	return c.JSON(fiber.Map{
 		"reference":   ref,
 		"achievement": ach,
 	})
 }
 
 // ----------------------- SUBMIT ----------------------------
-func (s *AchievementService) SubmitAchievement(c *gin.Context) {
-	refID := c.Param("id")
+func (s *AchievementService) SubmitAchievement(c *fiber.Ctx) error {
+	refID := c.Params("id")
 	if refID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing id"})
-		return
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "missing id"})
 	}
 
-	userID := c.GetString("user_id")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user in token"})
-		return
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "missing user in token"})
 	}
+	userIDStr := userID.(string)
 
 	s.Repo.EnsureDBs()
 
-	// ---- Ambil student berdasarkan user_id ----
-	student, err := s.StudentRepo.FindByUserID(userID)
+	student, err := s.StudentRepo.FindByUserID(userIDStr)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student profile not found"})
-		return
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "student profile not found"})
 	}
 
-	// ---- Ambil achievement reference ----
 	ref, err := s.Repo.GetReferenceByID(refID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "reference not found"})
-		return
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "reference not found"})
 	}
 
-	// ---- Validasi kepemilikan ----
 	if ref.StudentID != student.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "not allowed"})
-		return
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "not allowed"})
 	}
 
-	// ---- Precondition FR-004: harus draft ----
 	if ref.Status != "draft" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "only draft can be submitted"})
-		return
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "only draft can be submitted"})
 	}
 
-	// ---- Update status -> submitted ----
 	if err := s.Repo.Submit(refID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
 			"error":  "failed to submit",
 			"detail": err.Error(),
 		})
-		return
 	}
 
-	// ---- History ----
-	_ = s.Repo.AddHistory(refID, "draft", "submitted", userID, "")
+	_ = s.Repo.AddHistory(refID, "draft", "submitted", userIDStr, "")
 
-	// ---- Kirim notifikasi ke advisor ----
-	if student.AdvisorID != nil { // advisor_id tidak null
-		advisorID := *student.AdvisorID
-
+	if student.AdvisorID != nil {
 		_ = s.Repo.CreateNotification(
-			advisorID,
+			*student.AdvisorID,
 			"Pengajuan Prestasi Baru",
 			"Mahasiswa mengirim pengajuan prestasi untuk diverifikasi.",
 		)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	return c.JSON(fiber.Map{
 		"message": "submitted",
 		"status":  "submitted",
 	})
 }
 
-
-
 // ------------------------- VERIFY ----------------------------
-func (s *AchievementService) VerifyAchievement(c *gin.Context) {
-	refID := c.Param("id")
+func (s *AchievementService) VerifyAchievement(c *fiber.Ctx) error {
+	refID := c.Params("id")
 	if refID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing id"})
-		return
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "missing id"})
 	}
 
-	userID := c.GetString("user_id")
-	role := c.GetString("role")
+	userID := c.Locals("user_id").(string)
+	role := c.Locals("role").(string)
 
 	if role != "lecturer" && role != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only lecturer or admin can verify"})
-		return
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "only lecturer or admin can verify"})
 	}
 
-	// 1. Ambil reference
 	ref, err := s.Repo.GetReferenceByID(refID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "reference not found"})
-		return
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "reference not found"})
 	}
 
 	if ref.Status != "submitted" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "only submitted achievements can be verified"})
-		return
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "only submitted achievements can be verified"})
 	}
 
-	// 2. Ambil student dari reference
 	student, err := s.StudentRepo.GetByID(ref.StudentID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
-		return
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "student not found"})
 	}
 
-	// 3. Validasi dosen wali
 	if role == "lecturer" {
 		lecturerID, err := s.StudentRepo.GetLecturerIDByUserID(userID)
 		if err != nil {
-			c.JSON(http.StatusForbidden, gin.H{"error": "lecturer profile not found"})
-			return
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "lecturer profile not found"})
 		}
-
 		if student.AdvisorID == nil || *student.AdvisorID != lecturerID {
-			c.JSON(http.StatusForbidden, gin.H{"error": "not your advisee"})
-			return
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "not your advisee"})
 		}
 	}
 
-	// 4. Update status
 	if err := s.Repo.UpdateReferenceStatus(refID, "verified", &userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed update status"})
-		return
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "failed update status"})
 	}
 
 	_ = s.Repo.AddHistory(refID, "submitted", "verified", userID, "")
 
-	c.JSON(http.StatusOK, gin.H{
+	return c.JSON(fiber.Map{
 		"message": "achievement verified",
 		"status":  "verified",
 	})
 }
 
-
 // ------------------------- REJECT ----------------------------
-func (s *AchievementService) RejectAchievement(c *gin.Context) {
-	refID := c.Param("id")
+func (s *AchievementService) RejectAchievement(c *fiber.Ctx) error {
+	refID := c.Params("id")
 	if refID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing id"})
-		return
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "missing id"})
 	}
 
-	userID := c.GetString("user_id")
-	role := c.GetString("role")
+	userID := c.Locals("user_id").(string)
+	role := c.Locals("role").(string)
 
 	if role != "lecturer" && role != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only lecturer or admin can reject"})
-		return
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "only lecturer or admin can reject"})
 	}
 
 	var body struct {
 		Note string `json:"note"`
 	}
-	if err := c.ShouldBindJSON(&body); err != nil || body.Note == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "rejection note required"})
-		return
+	if err := c.BodyParser(&body); err != nil || body.Note == "" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "rejection note required"})
 	}
 
-	// 1. Ambil reference
 	ref, err := s.Repo.GetReferenceByID(refID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "reference not found"})
-		return
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "reference not found"})
 	}
 
 	if ref.Status != "submitted" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "only submitted achievements can be rejected"})
-		return
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "only submitted achievements can be rejected"})
 	}
 
-	// 2. Ambil student
 	student, err := s.StudentRepo.GetByID(ref.StudentID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
-		return
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "student not found"})
 	}
 
-	// 3. Validasi dosen wali
 	if role == "lecturer" {
 		lecturerID, err := s.StudentRepo.GetLecturerIDByUserID(userID)
 		if err != nil {
-			c.JSON(http.StatusForbidden, gin.H{"error": "lecturer profile not found"})
-			return
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "lecturer profile not found"})
 		}
-
 		if student.AdvisorID == nil || *student.AdvisorID != lecturerID {
-			c.JSON(http.StatusForbidden, gin.H{"error": "not your advisee"})
-			return
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "not your advisee"})
 		}
 	}
 
-	// 4. Reject
 	if err := s.Repo.RejectReference(refID, userID, body.Note); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed reject achievement"})
-		return
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "failed reject achievement"})
 	}
 
-	// 5. History
 	_ = s.Repo.AddHistory(refID, "submitted", "rejected", userID, body.Note)
 
-	// 6. Notification ke mahasiswa
 	_ = s.Repo.CreateNotification(
 		ref.StudentID,
 		"Prestasi Ditolak",
 		"Prestasi Anda ditolak dengan catatan: "+body.Note,
 	)
 
-	c.JSON(http.StatusOK, gin.H{
+	return c.JSON(fiber.Map{
 		"message": "achievement rejected",
 		"status":  "rejected",
 	})
 }
 
-
 // ------------------------- HISTORY ----------------------------
-func (s *AchievementService) GetAchievementHistory(c *gin.Context) {
-	refID := c.Param("id")
+func (s *AchievementService) GetAchievementHistory(c *fiber.Ctx) error {
+	refID := c.Params("id")
 	if refID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing id"})
-		return
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "missing id"})
 	}
 
 	s.Repo.EnsureDBs()
@@ -380,119 +317,160 @@ func (s *AchievementService) GetAchievementHistory(c *gin.Context) {
 		  FROM achievement_history WHERE achievement_ref_id=$1 ORDER BY changed_at ASC`
 
 	if err := s.Repo.Psql.Select(&rows, q, refID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed retrieve history", "detail": err.Error()})
-		return
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error":  "failed retrieve history",
+			"detail": err.Error(),
+		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"history": rows})
+	return c.JSON(fiber.Map{"history": rows})
 }
 
 // ------------------------- ATTACHMENT ----------------------------
-func (s *AchievementService) UploadAttachment(c *gin.Context) {
-	refID := c.Param("id")
+func (s *AchievementService) UploadAttachment(c *fiber.Ctx) error {
+	refID := c.Params("id")
 	if refID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing id"})
-		return
-	}
-	userID := c.GetString("user_id")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user in token"})
-		return
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "missing id",
+		})
 	}
 
-	var body struct {
-		FileURL  string `json:"file_url"`
-		FileType string `json:"file_type"`
+	// user dari JWT
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
+			"error": "missing user in token",
+		})
 	}
-	if err := c.ShouldBindJSON(&body); err != nil || body.FileURL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "file_url required"})
-		return
+	userIDStr := userID.(string)
+
+	// ===============================
+	// Ambil file dari form-data
+	// ===============================
+	file, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "file is required",
+		})
 	}
+
+	// pastikan folder uploads ada
+	uploadDir := "uploads"
+	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed create upload directory",
+		})
+	}
+
+	// ===============================
+	// Generate nama file aman & unik
+	// ===============================
+	ext := filepath.Ext(file.Filename)
+	fileName := fmt.Sprintf(
+		"%s_%s%s",
+		refID,
+		uuid.New().String(),
+		ext,
+	)
+
+	filePath := filepath.Join(uploadDir, fileName)
+
+	// ===============================
+	// Simpan file ke folder uploads/
+	// ===============================
+	if err := c.SaveFile(file, filePath); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed save file",
+		})
+	}
+
+	// ===============================
+	// Tentukan file type
+	// ===============================
+	fileType := c.FormValue("file_type")
+	if fileType == "" {
+		fileType = strings.TrimPrefix(ext, ".")
+	}
+
+	// ===============================
+	// Simpan ke database
+	// ===============================
+	s.Repo.EnsureDBs()
+
+	if err := s.Repo.AddAttachment(refID, filePath, fileType, userIDStr); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error":  "failed save attachment",
+			"detail": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":  "attachment uploaded",
+		"file_url": filePath,
+	})
+}
+
+
+// ------------------------- DELETE ----------------------------
+func (s *AchievementService) DeleteAchievement(c *fiber.Ctx) error {
+	refID := c.Params("id")
+	if refID == "" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "missing id"})
+	}
+
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "missing user in token"})
+	}
+	userIDStr := userID.(string)
 
 	s.Repo.EnsureDBs()
 
-	if err := s.Repo.AddAttachment(refID, body.FileURL, body.FileType, userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed save attachment", "detail": err.Error()})
-		return
+	student, err := s.StudentRepo.FindByUserID(userIDStr)
+	if err != nil {
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "student profile not found"})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "attachment uploaded"})
+	ref, err := s.Repo.GetReferenceByID(refID)
+	if err != nil {
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "achievement not found"})
+	}
+
+	if ref.StudentID != student.ID {
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "not allowed"})
+	}
+
+	if ref.Status != "draft" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "only draft achievements can be deleted"})
+	}
+
+	if err := s.Repo.SoftDeleteMongo(ref.MongoAchievementID); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error":  "failed to soft delete mongo",
+			"detail": err.Error(),
+		})
+	}
+
+	if err := s.Repo.SoftDeleteReference(refID); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error":  "failed to update reference",
+			"detail": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "achievement deleted successfully",
+		"id":      refID,
+	})
 }
 
+// ------------------------- ADVISEE ----------------------------
+func (s *AchievementService) GetAdviseeAchievements(c *fiber.Ctx) error {
+	lecturerID := c.Params("id")
 
-func (s *AchievementService) DeleteAchievement(c *gin.Context) {
-    refID := c.Param("id")
-    if refID == "" {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "missing id"})
-        return
-    }
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
 
-    userID := c.GetString("user_id")
-    if userID == "" {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user in token"})
-        return
-    }
-
-    s.Repo.EnsureDBs()
-
-    // --- Ambil student ---
-    student, err := s.StudentRepo.FindByUserID(userID)
-    if err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "student profile not found"})
-        return
-    }
-
-    // --- Ambil reference ---
-    ref, err := s.Repo.GetReferenceByID(refID)
-    if err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "achievement not found"})
-        return
-    }
-
-    // --- Validasi kepemilikan ---
-    if ref.StudentID != student.ID {
-        c.JSON(http.StatusForbidden, gin.H{"error": "not allowed"})
-        return
-    }
-
-    // --- Precondition: hanya draft yang boleh dihapus ---
-    if ref.Status != "draft" {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "only draft achievements can be deleted"})
-        return
-    }
-
-    // --- Soft delete Mongo ---
-    if err := s.Repo.SoftDeleteMongo(ref.MongoAchievementID); err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{
-            "error": "failed to soft delete mongo",
-            "detail": err.Error(),
-        })
-        return
-    }
-
-    // --- Update reference PostgreSQL ---
-    if err := s.Repo.SoftDeleteReference(refID); err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{
-            "error": "failed to update reference",
-            "detail": err.Error(),
-        })
-        return
-    }
-
-    c.JSON(http.StatusOK, gin.H{
-        "message": "achievement deleted successfully",
-        "id":      refID,
-    })
-}
-
-
-func (s *AchievementService) GetAdviseeAchievements(c *gin.Context) {
-
-	lecturerID := c.Param("id")
-
-	// pagination
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	if page < 1 {
 		page = 1
 	}
@@ -501,45 +479,37 @@ func (s *AchievementService) GetAdviseeAchievements(c *gin.Context) {
 	}
 	offset := (page - 1) * limit
 
-	// 1. ambil mahasiswa bimbingan
 	studentIDs, err := s.StudentRepo.GetStudentIDsByAdvisor(lecturerID)
 	if err != nil || len(studentIDs) == 0 {
-		c.JSON(200, gin.H{
+		return c.JSON(fiber.Map{
 			"data":  []any{},
 			"page":  page,
 			"limit": limit,
 		})
-		return
 	}
 
-	// 2. ambil reference prestasi (submitted saja)
 	refs, err := s.Repo.GetReferencesByStudentIDs(studentIDs, limit, offset)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
-		return
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// 3. ambil detail mongo
 	results := []any{}
 	for _, ref := range refs {
-
 		detail, err := s.Repo.GetAchievementMongoDetail(ref.MongoAchievementID)
 		if err != nil {
 			fmt.Println("Mongo miss:", ref.MongoAchievementID)
 			continue
 		}
 
-		results = append(results, gin.H{
+		results = append(results, fiber.Map{
 			"reference": ref,
 			"detail":    detail,
 		})
 	}
 
-	c.JSON(200, gin.H{
+	return c.JSON(fiber.Map{
 		"data":  results,
 		"page":  page,
 		"limit": limit,
 	})
 }
-
-

@@ -3,8 +3,9 @@ package service
 import (
 	"net/http"
 
+	"github.com/gofiber/fiber/v2"
+
 	"project_uas/app/repository"
-	"github.com/gin-gonic/gin"
 )
 
 type StudentService struct {
@@ -16,20 +17,23 @@ func NewStudentService(repo *repository.StudentRepo) *StudentService {
 }
 
 // GET /students/profile
-func (s *StudentService) GetProfile(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user in token"})
-		return
+func (s *StudentService) GetProfile(c *fiber.Ctx) error {
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
+			"error": "missing user in token",
+		})
 	}
+	userIDStr := userID.(string)
 
-	student, err := s.Repo.FindByUserID(userID)
+	student, err := s.Repo.FindByUserID(userIDStr)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student profile not found"})
-		return
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{
+			"error": "student profile not found",
+		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	return c.Status(http.StatusOK).JSON(fiber.Map{
 		"message": "student profile loaded",
 		"data":    student,
 	})

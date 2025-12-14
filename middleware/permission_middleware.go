@@ -3,24 +3,27 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 )
 
-func RequirePermission(permission string) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func RequirePermission(permission string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 
-		perms := c.GetStringSlice("permissions")
+		perms, ok := c.Locals("permissions").([]string)
+		if !ok {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"error": "permissions not found",
+			})
+		}
 
 		for _, p := range perms {
 			if p == permission {
-				c.Next()
-				return
+				return c.Next()
 			}
 		}
 
-		c.JSON(http.StatusForbidden, gin.H{
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{
 			"error": "missing permission: " + permission,
 		})
-		c.Abort()
 	}
 }

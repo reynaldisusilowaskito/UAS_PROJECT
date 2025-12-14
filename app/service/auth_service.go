@@ -3,12 +3,12 @@ package service
 import (
 	"net/http"
 
+	"github.com/gofiber/fiber/v2"
+	"golang.org/x/crypto/bcrypt"
+
 	"project_uas/helper"
 	"project_uas/app/model"
 	"project_uas/app/repository"
-
-	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthService struct {
@@ -24,46 +24,55 @@ func NewAuthService(authRepo *repository.AuthRepo) *AuthService {
 // =====================
 //        LOGIN
 // =====================
-func (s *AuthService) Login(c *gin.Context) {
+func (s *AuthService) Login(c *fiber.Ctx) error {
 	var req model.LoginRequest
 
 	// (1) Validasi input JSON
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid JSON",
+		})
 	}
 
 	// (2) Ambil user berdasarkan username
 	user, err := s.AuthRepo.FindByUsername(req.Username)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid username or password"})
-		return
+		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
+			"error": "invalid username or password",
+		})
 	}
 
 	// (3) Validasi password
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid username or password"})
-		return
+	if err := bcrypt.CompareHashAndPassword(
+		[]byte(user.PasswordHash),
+		[]byte(req.Password),
+	); err != nil {
+		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
+			"error": "invalid username or password",
+		})
 	}
 
 	// (4) Cek status aktif
 	if !user.IsActive {
-		c.JSON(http.StatusForbidden, gin.H{"error": "account disabled"})
-		return
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{
+			"error": "account disabled",
+		})
 	}
 
 	// (5) Ambil role
 	roleName, err := s.AuthRepo.GetRoleNameByID(user.RoleID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot load role"})
-		return
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "cannot load role",
+		})
 	}
 
 	// Ambil permissions user
 	perms, err := s.AuthRepo.GetPermissionsByRole(user.RoleID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot load permissions"})
-		return
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "cannot load permissions",
+		})
 	}
 
 	// (6) Generate Access Token
@@ -74,24 +83,26 @@ func (s *AuthService) Login(c *gin.Context) {
 		perms,
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed generate access token"})
-		return
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed generate access token",
+		})
 	}
 
 	// Generate Refresh Token
 	refreshToken, err := helper.GenerateRefreshToken(user.ID, roleName)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed generate refresh token"})
-		return
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed generate refresh token",
+		})
 	}
 
 	// (7) Return response sesuai SRS
-	c.JSON(http.StatusOK, gin.H{
+	return c.Status(http.StatusOK).JSON(fiber.Map{
 		"status": "success",
-		"data": gin.H{
+		"data": fiber.Map{
 			"token":        accessToken,
 			"refreshToken": refreshToken,
-			"user": gin.H{
+			"user": fiber.Map{
 				"id":          user.ID,
 				"username":    user.Username,
 				"email":       user.Email,
@@ -106,22 +117,22 @@ func (s *AuthService) Login(c *gin.Context) {
 // =====================
 //     GET PROFILE
 // =====================
-func (s *AuthService) GetProfile(c *gin.Context) {
+func (s *AuthService) GetProfile(c *fiber.Ctx) error {
 
-	userID := c.GetString("user_id")
-	username := c.GetString("username")
-	role := c.GetString("role")
+	userID := c.Locals("user_id")
+	username := c.Locals("username")
+	role := c.Locals("role")
+	permissions := c.Locals("permissions")
 
-	permissions, _ := c.Get("permissions") // c.Get mengembalikan (value, exists)
-
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-		return
+	if userID == nil {
+		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
+			"error": "invalid token",
+		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	return c.Status(http.StatusOK).JSON(fiber.Map{
 		"status": "success",
-		"data": gin.H{
+		"data": fiber.Map{
 			"user_id":     userID,
 			"username":    username,
 			"role":        role,
@@ -129,4 +140,3 @@ func (s *AuthService) GetProfile(c *gin.Context) {
 		},
 	})
 }
-

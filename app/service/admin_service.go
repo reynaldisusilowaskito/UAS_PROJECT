@@ -2,8 +2,10 @@ package service
 
 import (
 	"net/http"
+
+	"github.com/gofiber/fiber/v2"
+
 	"project_uas/app/repository"
-	"github.com/gin-gonic/gin"
 )
 
 type AdminService struct {
@@ -14,29 +16,38 @@ func NewAdminService(repo *repository.AdminRepo) *AdminService {
 	return &AdminService{Repo: repo}
 }
 
-func (s *AdminService) GetAllUsers(c *gin.Context) {
+func (s *AdminService) GetAllUsers(c *fiber.Ctx) error {
 	data, err := s.Repo.GetAllUsers()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed get users"})
-		return
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed get users",
+		})
 	}
-	c.JSON(http.StatusOK, data)
+
+	return c.Status(http.StatusOK).JSON(data)
 }
 
-func (s *AdminService) UpdateUserStatus(c *gin.Context) {
+func (s *AdminService) UpdateUserStatus(c *fiber.Ctx) error {
 	type Req struct {
 		UserID string `json:"user_id"`
 		Active bool   `json:"active"`
 	}
 
 	var req Req
-	c.ShouldBindJSON(&req)
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid request body",
+		})
+	}
 
 	err := s.Repo.UpdateUserStatus(req.UserID, req.Active)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed update user"})
-		return
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed update user",
+		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "updated"})
+	return c.Status(http.StatusOK).JSON(fiber.Map{
+		"message": "updated",
+	})
 }

@@ -74,18 +74,10 @@ func RegisterRoutes(
 	// =====================
 	students := api.Group("/students", middleware.AuthMiddleware())
 	{
-		students.Get("/", func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusNotImplemented)
-		})
-		students.Get("/:id", func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusNotImplemented)
-		})
-		students.Get("/:id/achievements", func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusNotImplemented)
-		})
-		students.Put("/:id/advisor", middleware.OnlyAdmin(), func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusNotImplemented)
-		})
+		students.Get("/", func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
+		students.Get("/:id", func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
+		students.Get("/:id/achievements", func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
+		students.Put("/:id/advisor", middleware.OnlyAdmin(), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
 		students.Get("/profile", studentService.GetProfile)
 	}
 
@@ -94,25 +86,15 @@ func RegisterRoutes(
 	// =====================
 	lecturers := api.Group("/lecturers", middleware.AuthMiddleware())
 	{
-		lecturers.Get("/", func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusNotImplemented)
-		})
-		lecturers.Get("/:id/advisees",
-			middleware.OnlyLecturer(),
-			achievementService.GetAdviseeAchievements,
-		)
-	}
+		lecturers.Get("/", func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
+		lecturers.Get("/:id/advisees",middleware.OnlyLecturer(),achievementService.GetAdviseeAchievements,)}
 
 	// =====================
 	// REPORTS
 	// =====================
 	reports := api.Group("/reports", middleware.AuthMiddleware())
 	{
-		reports.Get("/statistics", middleware.OnlyAdmin(), func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusNotImplemented)
-		})
-		reports.Get("/student/:id", func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusNotImplemented)
-		})
+		reports.Get("/statistics", middleware.OnlyAdmin(), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
+		reports.Get("/student/:id", func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
 	}
 }

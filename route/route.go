@@ -23,9 +23,7 @@ func RegisterRoutes(
 	{
 		auth.Post("/login", authService.Login)
 		auth.Post("/refresh", func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusNotImplemented) })
-		auth.Post("/logout", middleware.AuthMiddleware(), func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusOK)
-		})
+		auth.Post("/logout",middleware.AuthMiddleware(),authService.Logout,)
 		auth.Get("/profile", middleware.AuthMiddleware(), authService.GetProfile)
 	}
 
@@ -34,24 +32,12 @@ func RegisterRoutes(
 	// =====================
 	users := api.Group("/users", middleware.AuthMiddleware())
 	{
-		users.Get("/", middleware.RequirePermission("users:read"), func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusNotImplemented)
-		})
-		users.Get("/:id", middleware.RequirePermission("users:read"), func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusNotImplemented)
-		})
-		users.Post("/", middleware.RequirePermission("users:create"), func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusNotImplemented)
-		})
-		users.Put("/:id", middleware.RequirePermission("users:update"), func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusNotImplemented)
-		})
-		users.Delete("/:id", middleware.RequirePermission("users:delete"), func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusNotImplemented)
-		})
-		users.Put("/:id/role", middleware.RequirePermission("users:update-role"), func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusNotImplemented)
-		})
+		users.Get("/", middleware.RequirePermission("users:read"), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
+		users.Get("/:id", middleware.RequirePermission("users:read"), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
+		users.Post("/", middleware.RequirePermission("users:create"), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
+		users.Put("/:id", middleware.RequirePermission("users:update"), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
+		users.Delete("/:id", middleware.RequirePermission("users:delete"), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
+		users.Put("/:id/role", middleware.RequirePermission("users:update-role"), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
 	}
 
 	// =====================

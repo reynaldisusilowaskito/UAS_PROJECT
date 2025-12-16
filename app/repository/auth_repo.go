@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"project_uas/app/model"
 	"github.com/jmoiron/sqlx"
 )
@@ -64,4 +66,24 @@ func (r *AuthRepo) GetPermissionsByRole(roleID string) ([]string, error) {
 	`, roleID)
 
 	return perms, err
+}
+
+
+
+func (r *AuthRepo) RevokeToken(token string, userID string, exp time.Time) error {
+	_, err := r.DB.Exec(`
+		INSERT INTO revoked_tokens (token, user_id, expired_at)
+		VALUES ($1, $2, $3)
+	`, token, userID, exp)
+	return err
+}
+
+func (r *AuthRepo) IsTokenRevoked(token string) (bool, error) {
+	var exists bool
+	err := r.DB.Get(&exists, `
+		SELECT EXISTS (
+			SELECT 1 FROM revoked_tokens WHERE token = $1
+		)
+	`, token)
+	return exists, err
 }

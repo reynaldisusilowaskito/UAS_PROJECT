@@ -140,3 +140,19 @@ func (s *AuthService) GetProfile(c *fiber.Ctx) error {
 		},
 	})
 }
+
+
+
+func (s *AuthService) Logout(c *fiber.Ctx) error {
+	// semua role masuk ke sini
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "logout success",
+	})
+}

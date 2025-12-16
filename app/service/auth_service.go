@@ -2,6 +2,7 @@ package service
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -141,18 +142,47 @@ func (s *AuthService) GetProfile(c *fiber.Ctx) error {
 	})
 }
 
-
-
 func (s *AuthService) Logout(c *fiber.Ctx) error {
-	// semua role masuk ke sini
-	userID := c.Locals("user_id")
-	if userID == nil {
+
+	authHeader := c.Get("Authorization")
+	if authHeader == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "unauthorized",
+			"error": "missing Authorization header",
 		})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "invalid Authorization header",
+		})
+	}
+
+	token := parts[1]
+
+	// 🔹 verify token (cukup untuk ambil claim, bukan otorisasi)
+	claims, err := helper.VerifyAccessToken(token)
+	if err != nil {
+		// token rusak / expired → tetap anggap logout sukses
+		return c.JSON(fiber.Map{
+			"message": "logout success",
+		})
+	}
+
+	err = s.AuthRepo.RevokeToken(
+		token,
+		claims.UserID,
+		claims.ExpiresAt.Time,
+	)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to revoke token",
+		})
+	}
+
+	return c.JSON(fiber.Map{
 		"message": "logout success",
 	})
 }
+
+

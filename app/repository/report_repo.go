@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"project_uas/app/model"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -13,13 +12,22 @@ func NewReportRepo(db *sqlx.DB) *ReportRepo {
 	return &ReportRepo{DB: db}
 }
 
-func (r *ReportRepo) CountAchievementsByStatus() ([]model.ReportItem, error) {
-	var data []model.ReportItem
-	q := `
-		SELECT status AS name, COUNT(*) AS total
+func (r *ReportRepo) CountAchievementsByStatus() (map[string]int, error) {
+	rows, err := r.DB.Queryx(`
+		SELECT status, COUNT(*) 
 		FROM achievement_references
 		GROUP BY status
-	`
-	err := r.DB.Select(&data, q)
-	return data, err
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	result := map[string]int{}
+	for rows.Next() {
+		var status string
+		var total int
+		rows.Scan(&status, &total)
+		result[status] = total
+	}
+	return result, nil
 }

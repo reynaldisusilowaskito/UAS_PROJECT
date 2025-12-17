@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/gofiber/fiber/v2"
+	fiberSwagger "github.com/swaggo/fiber-swagger"
 
 	"project_uas/config"
 	"project_uas/database"
@@ -11,6 +12,8 @@ import (
 
 	"project_uas/app/repository"
 	"project_uas/app/service"
+
+	_ "project_uas/docs"
 )
 
 func main() {
@@ -40,6 +43,9 @@ func main() {
 	// Init Fiber App
 	app := fiber.New()
 
+	// Swagger
+	app.Get("/swagger/*", fiberSwagger.WrapHandler)
+
 	// Register Routes
 	route.RegisterRoutes(
 		app,
@@ -48,7 +54,7 @@ func main() {
 		studentService,
 	)
 
-	// Print registered routes (setara r.Routes() di Gin)
+	// Print registered routes
 	for _, r := range app.GetRoutes() {
 		log.Println(r.Method, r.Path)
 	}

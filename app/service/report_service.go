@@ -26,3 +26,20 @@ func (s *ReportService) GetAchievementStats(c *fiber.Ctx) error {
 
 	return c.Status(http.StatusOK).JSON(data)
 }
+
+// GET /api/v1/reports/student/:id
+func (s *ReportService) GetStudentReport(c *fiber.Ctx) error {
+	studentID := c.Params("id")
+
+	data, err := s.Repo.GetStudentAchievementReport(studentID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": "failed student report",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"student_id": studentID,
+		"data":       data,
+	})
+}

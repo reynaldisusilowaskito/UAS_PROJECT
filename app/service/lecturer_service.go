@@ -34,3 +34,17 @@ func (s *LecturerService) GetProfile(c *fiber.Ctx) error {
 
 	return c.Status(http.StatusOK).JSON(data)
 }
+
+func (s *LecturerService) GetAll(c *fiber.Ctx) error {
+	data, err := s.Repo.GetAll()
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed get lecturers",
+		})
+	}
+
+	return c.Status(http.StatusOK).JSON(fiber.Map{
+		"data": data,
+	})
+}
+

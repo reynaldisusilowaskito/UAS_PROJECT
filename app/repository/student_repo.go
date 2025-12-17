@@ -101,3 +101,39 @@ func (r *StudentRepo) GetLecturerIDByUserID(userID string) (string, error) {
 	return lecturerID, err
 }
 
+
+// =====================
+// GET STUDENT ACHIEVEMENTS
+// =====================
+func (r *StudentRepo) GetAchievementsByStudentID(studentID string) ([]map[string]interface{}, error) {
+	var data []map[string]interface{}
+
+	query := `
+		SELECT
+			id,
+			title,
+			category,
+			level,
+			status,
+			created_at
+		FROM achievements
+		WHERE student_id = $1
+		ORDER BY created_at DESC
+	`
+
+	err := r.DB.Select(&data, query, studentID)
+	return data, err
+}
+
+// =====================
+// UPDATE ADVISOR
+// =====================
+func (r *StudentRepo) UpdateAdvisor(studentID string, advisorID string) error {
+	_, err := r.DB.Exec(`
+		UPDATE students
+		SET advisor_id = $1
+		WHERE id = $2
+	`, advisorID, studentID)
+
+	return err
+}

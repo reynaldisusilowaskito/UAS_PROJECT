@@ -12,6 +12,9 @@ func RegisterRoutes(
 	authService *service.AuthService,
 	achievementService *service.AchievementService,
 	studentService *service.StudentService,
+	userService *service.UserService,
+	lecturerService *service.LecturerService,
+	reportService *service.ReportService,
 ) {
 
 	api := app.Group("/api/v1")
@@ -31,20 +34,22 @@ func RegisterRoutes(
 	// USERS
 	// =====================
 	users := api.Group("/users", middleware.AuthMiddleware())
-	{
-		users.Get("/", middleware.RequirePermission("users:read"), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
-		users.Get("/:id", middleware.RequirePermission("users:read"), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
-		users.Post("/", middleware.RequirePermission("users:create"), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
-		users.Put("/:id", middleware.RequirePermission("users:update"), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
-		users.Delete("/:id", middleware.RequirePermission("users:delete"), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
-		users.Put("/:id/role", middleware.RequirePermission("users:update-role"), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
-	}
+{
+	users.Get("/", middleware.RequirePermission("users:read"), userService.GetAll)
+	users.Get("/:id", middleware.RequirePermission("users:read"), userService.GetByID)
+	users.Post("/", middleware.RequirePermission("users:create"), userService.Create)
+	users.Put("/:id", middleware.RequirePermission("users:update"), userService.Update)
+	users.Delete("/:id", middleware.RequirePermission("users:delete"), userService.Delete)
+	users.Put("/:id/role", middleware.RequirePermission("users:update-role"), userService.UpdateRole)
+}
+
 
 	// =====================
 	// ACHIEVEMENTS
 	// =====================
 	ach := api.Group("/achievements", middleware.AuthMiddleware())
 	{
+		ach.Get("/", middleware.OnlyAdmin(), achievementService.GetAll)
 		ach.Post("/", middleware.OnlyStudent(), achievementService.CreateAchievement)
 		ach.Post("/:id/submit", middleware.OnlyStudent(), achievementService.SubmitAchievement)
 		ach.Post("/:id/verify", middleware.OnlyLecturer(), achievementService.VerifyAchievement)
@@ -53,34 +58,39 @@ func RegisterRoutes(
 		ach.Post("/:id/attachments", achievementService.UploadAttachment)
 		ach.Get("/:id", achievementService.GetAchievementDetail)
 		ach.Delete("/:id", middleware.OnlyStudent(), achievementService.DeleteAchievement)
+		ach.Put("/:id", middleware.OnlyStudent(), achievementService.UpdateAchievement)
 	}
 
 	// =====================
 	// STUDENTS
 	// =====================
 	students := api.Group("/students", middleware.AuthMiddleware())
-	{
-		students.Get("/", func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
-		students.Get("/:id", func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
-		students.Get("/:id/achievements", func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
-		students.Put("/:id/advisor", middleware.OnlyAdmin(), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
+{
+		students.Get("/", studentService.GetAll)
+		students.Get("/:id", studentService.GetByID)
+		students.Get("/:id/achievements", studentService.GetAchievements)
+		students.Put("/:id/advisor", middleware.OnlyAdmin(), studentService.UpdateAdvisor)
 		students.Get("/profile", studentService.GetProfile)
-	}
+}
+
 
 	// =====================
 	// LECTURERS
 	// =====================
 	lecturers := api.Group("/lecturers", middleware.AuthMiddleware())
-	{
-		lecturers.Get("/", func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
-		lecturers.Get("/:id/advisees",middleware.OnlyLecturer(),achievementService.GetAdviseeAchievements,)}
+{
+	lecturers.Get("/", lecturerService.GetAll)
+	lecturers.Get("/profile", middleware.OnlyLecturer(), lecturerService.GetProfile)
+	lecturers.Get("/:id/advisees",middleware.OnlyLecturer(),achievementService.GetAdviseeAchievements,)
+}
 
 	// =====================
 	// REPORTS
 	// =====================
 	reports := api.Group("/reports", middleware.AuthMiddleware())
-	{
-		reports.Get("/statistics", middleware.OnlyAdmin(), func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
-		reports.Get("/student/:id", func(c *fiber.Ctx) error {return c.SendStatus(fiber.StatusNotImplemented)})
-	}
+{
+	reports.Get("/student/:id",middleware.OnlyAdmin(),reportService.GetStudentReport,)
+	reports.Get("/statistics",middleware.OnlyAdmin(),reportService.GetAchievementStats,)
+}
+
 }

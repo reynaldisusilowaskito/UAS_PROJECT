@@ -513,3 +513,41 @@ func (s *AchievementService) GetAdviseeAchievements(c *fiber.Ctx) error {
 		"limit": limit,
 	})
 }
+
+// GET /api/v1/achievements (ADMIN)
+func (s *AchievementService) GetAll(c *fiber.Ctx) error {
+	data, err := s.Repo.GetAllReferencesWithDetail()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": "failed fetch achievements",
+		})
+	}
+	return c.JSON(fiber.Map{
+		"data": data,
+	})
+}
+
+// PUT /api/v1/achievements/:id (STUDENT, DRAFT ONLY)
+func (s *AchievementService) UpdateAchievement(c *fiber.Ctx) error {
+	refID := c.Params("id")
+
+	userID := c.Locals("user_id").(string)
+
+	var body map[string]interface{}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "invalid body",
+		})
+	}
+
+	err := s.Repo.UpdateDraftAchievement(refID, userID, body)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "achievement updated",
+	})
+}

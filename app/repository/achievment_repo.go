@@ -364,11 +364,7 @@ func (r *AchievementRepo) SoftDeleteReference(refID string) error {
 }
 
 // Get references by student IDs (pagination)
-func (r *AchievementRepo) GetReferencesByStudentIDs(
-	studentIDs []string,
-	limit int,
-	offset int,
-) ([]model.AchievementReference, error) {
+func (r *AchievementRepo) GetReferencesByStudentIDs(studentIDs []string,limit int,offset int,) ([]model.AchievementReference, error) {
 
 	var refs []model.AchievementReference
 
@@ -401,10 +397,7 @@ func (r *AchievementRepo) GetAchievementMongoDetail(id string) (bson.M, error) {
 }
 
 
-func (r *AchievementRepo) VerifyReference(
-	refID string,
-	lecturerID string,
-) error {
+func (r *AchievementRepo) VerifyReference(refID string,lecturerID string,) error {
 
 	r.EnsureDBs()
 
@@ -441,6 +434,69 @@ func (r *AchievementRepo) RejectReference(
 		    updated_at = NOW()
 		WHERE id = $3
 	`, note, rejectedBy, refID)
+
+	return err
+}
+
+func (r *AchievementRepo) GetAllReferencesWithDetail() ([]map[string]interface{}, error) {
+	r.EnsureDBs()
+
+	query := `
+		SELECT id, student_id, mongo_achievement_id, status, created_at
+		FROM achievement_references
+		ORDER BY created_at DESC
+	`
+
+	var refs []model.AchievementReference
+	if err := r.Psql.Select(&refs, query); err != nil {
+		return nil, err
+	}
+
+	results := []map[string]interface{}{}
+
+	for _, ref := range refs {
+		detail, err := r.GetAchievementMongoDetail(ref.MongoAchievementID)
+		if err != nil {
+			continue // mongo miss → skip
+		}
+
+		results = append(results, map[string]interface{}{
+			"reference": ref,
+			"detail":    detail,
+		})
+	}
+
+	return results, nil
+}
+
+func (r *AchievementRepo) UpdateDraftAchievement(refID string,userID string,update map[string]interface{},) error {
+
+	r.EnsureDBs()
+
+	// 1. Ambil reference
+	ref, err := r.GetReferenceByID(refID)
+	if err != nil {
+		return fmt.Errorf("achievement not found")
+	}
+
+	// 2. Validasi status
+	if ref.Status != "draft" {
+		return fmt.Errorf("only draft can be updated")
+	}
+
+	// 3. Update Mongo
+	oid, err := primitive.ObjectIDFromHex(ref.MongoAchievementID)
+	if err != nil {
+		return err
+	}
+
+	update["updated_at"] = time.Now()
+
+	_, err = r.Mongo.Collection("achievements").UpdateOne(
+		context.Background(),
+		bson.M{"_id": oid},
+		bson.M{"$set": update},
+	)
 
 	return err
 }

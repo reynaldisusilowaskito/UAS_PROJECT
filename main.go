@@ -18,29 +18,35 @@ import (
 
 func main() {
 
-	// Load environment variables
+	// Load env
 	config.LoadEnv()
 
-	// Connect to PostgreSQL & MongoDB
+	// Connect DB
 	database.Connect()
 
-	// Init Repository
+	// =====================
+	// INIT REPOSITORIES
+	// =====================
 	authRepo := repository.NewAuthRepo(database.PostgresDB)
-	achievementRepo := repository.NewAchievementRepo(
-		database.PostgresDB,
-		database.MongoDB,
-	)
+	achievementRepo := repository.NewAchievementRepo(database.PostgresDB,database.MongoDB,)
 	studentRepo := repository.NewStudentRepo(database.PostgresDB)
+	userRepo := repository.NewUserRepo(database.PostgresDB)
+	lecturerRepo := repository.NewLecturerRepo(database.PostgresDB)
+	reportRepo := repository.NewReportRepo(database.PostgresDB)
 
-	// Init Services
+	// =====================
+	// INIT SERVICES
+	// =====================
 	authService := service.NewAuthService(authRepo)
-	achievementService := service.NewAchievementService(
-		achievementRepo,
-		studentRepo,
-	)
+	achievementService := service.NewAchievementService(achievementRepo,studentRepo,)
 	studentService := service.NewStudentService(studentRepo)
+	userService := service.NewUserService(userRepo) // ✅ WAJIB
+	lecturerService := service.NewLecturerService(lecturerRepo)
+	reportService := service.NewReportService(reportRepo)
 
-	// Init Fiber App
+	// =====================
+	// INIT APP
+	// =====================
 	app := fiber.New()
 
 	// Swagger
@@ -52,9 +58,12 @@ func main() {
 		authService,
 		achievementService,
 		studentService,
+		userService,        // ✅ DITAMBAHKAN
+		lecturerService,
+		reportService,
 	)
 
-	// Print registered routes
+	// Debug routes
 	for _, r := range app.GetRoutes() {
 		log.Println(r.Method, r.Path)
 	}

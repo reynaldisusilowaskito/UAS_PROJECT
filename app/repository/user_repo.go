@@ -92,3 +92,22 @@ func (r *UserRepo) UpdateRole(id string, roleID string) error {
 	`, roleID, id)
 	return err
 }
+
+
+func (r *UserRepo) GetRoleIDByName(name string) (string, error) {
+	var id string
+	err := r.DB.Get(&id, `SELECT id FROM roles WHERE name=$1`, name)
+	return id, err
+}
+
+
+func (r *UserRepo) CreateTx(tx *sqlx.Tx, u *model.User) error {
+	query := `
+		INSERT INTO users
+		(id, username, email, password_hash, full_name, role_id, is_active)
+		VALUES
+		(:id, :username, :email, :password_hash, :full_name, :role_id, :is_active)
+	`
+	_, err := tx.NamedExec(query, u)
+	return err
+}

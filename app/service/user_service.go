@@ -57,10 +57,22 @@ func (s *UserService) Create(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
 	}
 
+	if body.RoleID == "" {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "roleId is required",
+		})
+	}
+
+	if _, err := uuid.Parse(body.RoleID); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "invalid roleId UUID",
+		})
+	}
+
 	hash, _ := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
 
 	user := model.User{
-		ID:           uuid.New().String(),
+		ID:           uuid.NewString(),
 		Username:     body.Username,
 		Email:        body.Email,
 		PasswordHash: string(hash),

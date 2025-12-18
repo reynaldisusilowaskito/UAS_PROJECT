@@ -40,21 +40,17 @@ func (r *UserRepo) GetByID(id string) (*model.User, error) {
 // =====================
 // CREATE
 // =====================
-func (r *UserRepo) Create(user *model.User) error {
-	_, err := r.DB.Exec(`
-		INSERT INTO users 
-		(id, username, email, password_hash, full_name, role_id, is_active, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,true,NOW(),NOW())
-	`,
-		user.ID,
-		user.Username,
-		user.Email,
-		user.PasswordHash,
-		user.FullName,
-		user.RoleID,
-	)
+func (r *UserRepo) Create(u *model.User) error {
+	query := `
+		INSERT INTO users
+		(id, username, email, password_hash, full_name, role_id, is_active)
+		VALUES
+		(:id, :username, :email, :password_hash, :full_name, :role_id, :is_active)
+	`
+	_, err := r.DB.NamedExec(query, u)
 	return err
 }
+
 
 // =====================
 // UPDATE

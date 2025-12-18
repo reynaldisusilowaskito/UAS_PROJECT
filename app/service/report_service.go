@@ -42,4 +42,4 @@ func (s *ReportService) GetStudentReport(c *fiber.Ctx) error {
 		"student_id": studentID,
 		"data":       data,
 	})
-}
+}	

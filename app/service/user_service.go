@@ -212,18 +212,44 @@ func (s *UserService) Delete(c *fiber.Ctx) error {
 // UPDATE ROLE
 // =====================
 func (s *UserService) UpdateRole(c *fiber.Ctx) error {
-	id := c.Params("id")
+	userID := c.Params("id")
 
 	var body struct {
-		RoleID string `json:"roleId"`
-	}
-	if err := c.BodyParser(&body); err != nil || body.RoleID == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "roleId required"})
+		Role string `json:"role"`
 	}
 
-	if err := s.UserRepo.UpdateRole(id, body.RoleID); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	if err := c.BodyParser(&body); err != nil || body.Role == "" {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "role is required",
+		})
 	}
 
-	return c.JSON(fiber.Map{"message": "role updated"})
+	// validasi role
+	if body.Role != "admin" && body.Role != "student" && body.Role != "lecturer" {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "invalid role",
+		})
+	}
+
+	// ambil role_id dari table roles
+	roleID, err := s.UserRepo.GetRoleIDByName(body.Role)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "role not found",
+		})
+	}
+
+	// update role user
+	if err := s.UserRepo.UpdateRole(userID, roleID); err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "role updated successfully",
+		"user_id": userID,
+		"role": body.Role,
+	})
 }
+

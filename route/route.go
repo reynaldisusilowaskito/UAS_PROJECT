@@ -67,10 +67,11 @@ func RegisterRoutes(
 	students := api.Group("/students", middleware.AuthMiddleware())
 {
 		students.Get("/", studentService.GetAll)
+		students.Get("/profile", studentService.GetProfile)
 		students.Get("/:id", studentService.GetByID)
 		students.Get("/:id/achievements", studentService.GetAchievements)
 		students.Put("/:id/advisor", middleware.OnlyAdmin(), studentService.UpdateAdvisor)
-		students.Get("/profile", studentService.GetProfile)
+		
 }
 
 

@@ -95,10 +95,13 @@ func (r *UserRepo) UpdateRole(id string, roleID string) error {
 
 
 func (r *UserRepo) GetRoleIDByName(name string) (string, error) {
-	var id string
-	err := r.DB.Get(&id, `SELECT id FROM roles WHERE name=$1`, name)
-	return id, err
+	var roleID string
+	err := r.DB.Get(&roleID, `
+		SELECT id FROM roles WHERE name = $1
+	`, name)
+	return roleID, err
 }
+
 
 
 func (r *UserRepo) CreateTx(tx *sqlx.Tx, u *model.User) error {
